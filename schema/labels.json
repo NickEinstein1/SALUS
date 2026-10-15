@@ -1,0 +1,28 @@
+{
+  "product": "SALUS",
+  "graph_pattern": "salus:{tenant_id}",
+  "domains": ["finance", "healthcare", "security", "facilities", "identity", "ops"],
+  "layers": {
+    "org_brain_track_03": [
+      "Tenant", "Person", "Team", "Project", "System",
+      "Document", "Ticket", "Decision", "Skill", "Channel"
+    ],
+    "memory_track_02": [
+      "Agent", "Session", "Message", "Episode", "Fact",
+      "Procedure", "Handoff", "SharedState"
+    ],
+    "action_track_01": [
+      "Finding", "Investigation", "Action", "EvidencePath", "ToolCall"
+    ]
+  },
+  "relationships": [
+    "MEMBER_OF", "REPORTS_TO", "OWNS", "WORKS_ON", "USES", "DEPENDS_ON",
+    "KNOWS", "AUTHORED", "REFERENCES", "ABOUT", "ASSIGNED_TO", "DECIDED_FOR",
+    "SUPERSEDES", "POSTED_IN", "MENTIONS",
+    "FOR_TENANT", "IN_SESSION", "SENT_BY", "RECALLS", "ABOUT_ENTITY",
+    "LEARNED_FROM", "INVALIDATES", "USES_PROCEDURE", "UPDATED_PROCEDURE",
+    "HANDED_OFF", "RECEIVED", "SHARES", "REMEMBERS", "CONTINUES",
+    "TRIGGERED_BY", "LED_BY", "QUERIED", "PRODUCED", "SUPPORTS", "TOUCHES",
+    "DECIDED", "EXECUTED_BY", "AFFECTS", "GROUNDED_IN", "NEXT"
+  ]
+}

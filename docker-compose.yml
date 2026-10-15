@@ -1,0 +1,13 @@
+services:
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: salus-falkordb
+    ports:
+      - "6379:6379"
+      - "3000:3000"
+    volumes:
+      - salus_falkor_data:/data
+    restart: unless-stopped
+
+volumes:
+  salus_falkor_data:

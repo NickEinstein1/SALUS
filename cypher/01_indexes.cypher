@@ -1,0 +1,22 @@
+# SALUS indexes — graph salus:acme
+# Execute EACH statement as its own GRAPH.QUERY
+# Prefer: python -m salus.seed  (creates indexes automatically)
+
+CREATE INDEX FOR (n:Tenant) ON (n.id)
+CREATE INDEX FOR (n:Person) ON (n.id)
+CREATE INDEX FOR (n:Person) ON (n.email)
+CREATE INDEX FOR (n:Team) ON (n.id)
+CREATE INDEX FOR (n:Project) ON (n.id)
+CREATE INDEX FOR (n:System) ON (n.id)
+CREATE INDEX FOR (n:System) ON (n.name)
+CREATE INDEX FOR (n:Document) ON (n.id)
+CREATE INDEX FOR (n:Ticket) ON (n.id)
+CREATE INDEX FOR (n:Ticket) ON (n.key)
+CREATE INDEX FOR (n:Decision) ON (n.id)
+CREATE INDEX FOR (n:Skill) ON (n.id)
+CREATE INDEX FOR (n:Agent) ON (n.id)
+CREATE INDEX FOR (n:Episode) ON (n.id)
+CREATE INDEX FOR (n:Fact) ON (n.id)
+CREATE INDEX FOR (n:Investigation) ON (n.id)
+CREATE INDEX FOR (n:EvidencePath) ON (n.id)
+CREATE INDEX FOR (n:Action) ON (n.id)
