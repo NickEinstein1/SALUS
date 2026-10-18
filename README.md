@@ -5,6 +5,12 @@
 Built for [Graph Hacks: Context for AI Agents](https://www.wemakedevs.org/hackathons/falkordb?utm_source=luma) (WeMakeDevs × FalkorDB).  
 Powered by [FalkorDB](https://docs.falkordb.com/getting-started).
 
+## Demo video — watch and enjoy
+
+[![SALUS demo](https://img.youtube.com/vi/786HaLG8UO0/maxresdefault.jpg)](https://youtu.be/786HaLG8UO0)
+
+**→ [https://youtu.be/786HaLG8UO0](https://youtu.be/786HaLG8UO0)** (~2 min)
+
 ## What it does
 
 Ask SALUS something like *“why are checkouts failing?”*, *“who owns the HVAC zone that lost cooling?”*, or *“who can unlock wing B after a badge outage?”*
