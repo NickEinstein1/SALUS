@@ -123,38 +123,70 @@ def _from_trace(trace: list[dict[str, Any]], tool: str) -> dict[str, Any]:
     return {}
 
 
+def _jsonable(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    return str(value)
+
+
 def run_salus(
     question: str,
     tenant_id: str | None = None,
     *,
     user_id: str = "person:sam",
     session_id: str | None = None,
+    on_event: Any | None = None,
+    openai_api_key: str | None = None,
 ) -> SalusAnswer:
     steps: list[AgentStep] = []
     handoffs: list[str] = []
+
+    def emit(kind: str, payload: dict[str, Any] | None = None) -> None:
+        if on_event:
+            on_event({"type": kind, **(payload or {})})
+
+    def push_step(agent: str, action: str, detail: dict[str, Any] | None = None) -> None:
+        step = AgentStep(agent, action, detail or {})
+        steps.append(step)
+        emit(
+            "step",
+            {
+                "agent": agent,
+                "action": action,
+                "detail": _jsonable(detail or {}),
+            },
+        )
+
+    emit("run_start", {"question": question, "user_id": user_id})
 
     # ── Track 02: per-user session + persistent history ─────
     if not session_id:
         sess = memory.get_or_create_session(user_id, tenant_id=tenant_id)
         session_id = sess["session_id"]
-        steps.append(AgentStep("router", "open_session", sess))
+        push_step("router", "open_session", sess)
     else:
-        steps.append(AgentStep("router", "reuse_session", {"session_id": session_id, "user_id": user_id}))
+        push_step("router", "reuse_session", {"session_id": session_id, "user_id": user_id})
 
     memory.append_message(session_id, "user", question, sender_id=user_id, tenant_id=tenant_id)
     user_mem = memory.cross_session_memory(user_id, tenant_id=tenant_id)
-    steps.append(AgentStep("router", "cross_session_recall", user_mem))
+    push_step("router", "cross_session_recall", user_mem)
 
     # ── Track 02: procedural memory ─────────────────────────
     proc = memory.load_procedure(tenant_id=tenant_id)
     if proc:
         memory.mark_procedure_used("investigator", proc["id"], tenant_id=tenant_id)
         memory.mark_procedure_used("router", proc["id"], tenant_id=tenant_id)
-    steps.append(AgentStep("router", "load_procedure", proc or {}))
+    push_step("router", "load_procedure", proc or {})
 
     system = tools.extract_system_mention(question, tenant_id=tenant_id)
-    steps.append(AgentStep("router", "classify", {"system": system, "question": question}))
-    handoffs.append(_handoff("router", "investigator", "needs graph investigation", tenant_id))
+    push_step("router", "classify", {"system": system, "question": question})
+    handoff = _handoff("router", "investigator", "needs graph investigation", tenant_id)
+    handoffs.append(handoff)
+    emit("handoff", {"text": handoff, "from": "router", "to": "investigator"})
 
     if system:
         ingest.ingest_chat(
@@ -175,7 +207,7 @@ def run_salus(
             "or describe the domain (payments, EHR, badge, HVAC)."
         )
         memory.append_message(session_id, "agent", reply, sender_id="agent:router", tenant_id=tenant_id)
-        return SalusAnswer(
+        result = SalusAnswer(
             answer=reply,
             domain=None,
             system=None,
@@ -191,10 +223,17 @@ def run_salus(
             user_id=user_id,
             checklist={"resolved_system": False},
         )
+        emit("result", {"answer": result.answer, "confidence": result.confidence, "system": None})
+        return result
 
     # ── Track 01: MCP tool selection ────────────────────────
-    selection = tool_router.select_tools(question, procedure_steps=(proc or {}).get("steps"))
-    steps.append(AgentStep("investigator", "select_mcp_tools", selection))
+    selection = tool_router.select_tools(
+        question,
+        procedure_steps=(proc or {}).get("steps"),
+        openai_api_key=openai_api_key,
+    )
+    push_step("investigator", "select_mcp_tools", selection)
+    emit("system_focus", {"system": system})
     dispatch = _build_dispatch(system)
     tool_trace = tool_router.execute_selected_tools(
         selection["tools"],
@@ -204,7 +243,11 @@ def run_salus(
         dispatch=dispatch,
     )
     for t in tool_trace:
-        steps.append(AgentStep("investigator", t["tool"], {"latency_ms": t["latency_ms"], "summary": t["result_summary"][:200]}))
+        push_step(
+            "investigator",
+            t["tool"],
+            {"latency_ms": t["latency_ms"], "summary": t["result_summary"][:200]},
+        )
 
     radius = _from_trace(tool_trace, "salus_blast_radius") or tools.blast_radius(system, tenant_id=tenant_id)
     owners = _from_trace(tool_trace, "salus_who_owns_and_knows") or tools.who_owns_and_knows(
@@ -253,7 +296,19 @@ def run_salus(
     confidence = min(confidence, 0.97)
 
     primary = owner_names[0] if owner_names else (experts[0] if experts else None)
-    handoffs.append(_handoff("investigator", "actor", "evidence ready — take action", tenant_id))
+    handoff2 = _handoff("investigator", "actor", "evidence ready — take action", tenant_id)
+    handoffs.append(handoff2)
+    emit("handoff", {"text": handoff2, "from": "investigator", "to": "actor"})
+    emit(
+        "graph_insight",
+        {
+            "system": system,
+            "blast_radius": radius,
+            "owners": owners,
+            "pagerank": pr,
+            "betweenness": bet,
+        },
+    )
 
     # ── Track 02: shared state CAS update ───────────────────
     def _mutate(val: dict[str, Any]) -> dict[str, Any]:
@@ -275,7 +330,7 @@ def run_salus(
     state_update = memory.update_shared_state_with_retry(
         "active_incident", _mutate, tenant_id=tenant_id
     )
-    steps.append(AgentStep("actor", "shared_state_cas", state_update))
+    push_step("actor", "shared_state_cas", state_update)
 
     # ── Track 01: actions based on graph ────────────────────
     taken: list[dict[str, Any]] = []
@@ -325,8 +380,10 @@ def run_salus(
             {"aid": taken[0]["action_id"], "title": runbook_titles[0]},
             tenant_id=tenant_id,
         )
-    steps.append(AgentStep("actor", "execute_actions", {"actions": taken, "investigation": recorded}))
-    handoffs.append(_handoff("actor", "scribe", "persist memory", tenant_id))
+    push_step("actor", "execute_actions", {"actions": taken, "investigation": recorded})
+    handoff3 = _handoff("actor", "scribe", "persist memory", tenant_id)
+    handoffs.append(handoff3)
+    emit("handoff", {"text": handoff3, "from": "actor", "to": "scribe"})
 
     # ── Track 02/03: scribe episode + optional fact refresh ─
     ep_id = memory.write_episode(
@@ -345,7 +402,7 @@ def run_salus(
         source=recorded["investigation_id"],
         tenant_id=tenant_id,
     )
-    steps.append(AgentStep("scribe", "write_memory", {"episode_id": ep_id, "fact_id": new_fact}))
+    push_step("scribe", "write_memory", {"episode_id": ep_id, "fact_id": new_fact})
 
     action_lines = [f"{a.get('kind')} → {a.get('person') or a.get('ticket_key')}" for a in taken]
     source_lines = runbook_urls or runbook_titles
@@ -385,7 +442,7 @@ def run_salus(
         "track03_clear_sources": bool(source_lines),
     }
 
-    return SalusAnswer(
+    result = SalusAnswer(
         answer=answer,
         domain=domain,
         system=system,
@@ -417,3 +474,23 @@ def run_salus(
         tool_selection=selection,
         checklist=checklist,
     )
+    emit(
+        "result",
+        {
+            "answer": result.answer,
+            "domain": result.domain,
+            "system": result.system,
+            "owners": result.owners,
+            "confidence": result.confidence,
+            "actions": result.actions,
+            "sources": result.sources,
+            "evidence_summary": result.evidence_summary,
+            "handoffs": result.handoffs,
+            "investigation_id": result.investigation_id,
+            "session_id": result.session_id,
+            "checklist": result.checklist,
+            "path": _jsonable(result.path),
+            "tool_selection": result.tool_selection,
+        },
+    )
+    return result

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SALUS — Path Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body class="pathfinder-mode">
+  <div class="atmosphere" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand-mark">
+      <span class="brand-pulse" aria-hidden="true"></span>
+      <span class="brand">SALUS</span>
+    </div>
+    <p class="brand-tag">Path finder · Acts · Remembers · Explains</p>
+    <label class="api-key-wrap" title="SALUS API key (required)">
+      <span class="sr-only">SALUS API key</span>
+      <input id="apiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="SALUS API key" />
+    </label>
+    <label class="api-key-wrap openai-key-wrap" title="Optional OpenAI key for LLM tool selection">
+      <span class="sr-only">OpenAI API key</span>
+      <input id="openaiKeyInput" type="password" autocomplete="off" spellcheck="false" placeholder="OpenAI key (optional)" />
+    </label>
+    <div class="status-pill" id="healthStatus">connecting</div>
+  </header>
+
+  <nav class="track-bar" id="trackBar" aria-label="SALUS tracks">
+    <button type="button" class="track-item" data-track="01" id="track01">
+      <span class="track-id">01</span>
+      <span class="track-title">Act</span>
+      <span class="track-desc">Acts on connected data</span>
+      <span class="track-state" data-state>idle</span>
+    </button>
+    <button type="button" class="track-item" data-track="02" id="track02">
+      <span class="track-id">02</span>
+      <span class="track-title">Remember</span>
+      <span class="track-desc">Remembers what it learns</span>
+      <span class="track-state" data-state>idle</span>
+    </button>
+    <button type="button" class="track-item" data-track="03" id="track03">
+      <span class="track-id">03</span>
+      <span class="track-title">Explain</span>
+      <span class="track-desc">Shows how it got each answer</span>
+      <span class="track-state" data-state>idle</span>
+    </button>
+  </nav>
+
+  <main class="shell pathfinder-shell">
+    <!-- Ask strip drives the path finder -->
+    <section class="ask-strip" id="hero">
+      <div class="ask-strip-brand">
+        <h1 class="hero-brand compact">Path finder</h1>
+        <p class="hero-line compact">
+          Walk the company graph first. SALUS chats on the left after the path is found.
+        </p>
+      </div>
+      <form class="ask-form" id="askForm">
+        <label class="sr-only" for="question">Ask SALUS</label>
+        <input
+          id="question"
+          name="question"
+          type="text"
+          autocomplete="off"
+          placeholder="Why are checkouts failing — or Wing B lost cooling?"
+          required
+        />
+        <button type="submit" id="askBtn">Find path</button>
+      </form>
+      <div class="prompts" id="prompts">
+        <button type="button" data-q="Why are checkouts failing and who should own this?">Finance · checkout</button>
+        <button type="button" data-q="Wing B lost cooling — what breaks and who do we page?">HVAC → EHR</button>
+        <button type="button" data-q="Badge readers failing in wing B — who owns access control?">Badge outage</button>
+      </div>
+    </section>
+
+    <section class="workspace is-active pathfinder-grid" id="workspace" aria-live="polite">
+      <!-- LEFT: SALUS chatbot — narrates after other sections complete -->
+      <aside class="panel chat-panel" id="chatPanel">
+        <div class="chat-header">
+          <span class="brand-pulse" aria-hidden="true"></span>
+          <div>
+            <h2>SALUS</h2>
+            <p class="panel-sub">Chat after the path is found</p>
+          </div>
+        </div>
+        <div class="chat-thread" id="chatThread">
+          <div class="chat-bubble system">
+            Sections on the right and center run first. When the path is complete, I will appear here and explain what transpired.
+          </div>
+        </div>
+        <form class="chat-compose" id="chatFollowForm">
+          <label class="sr-only" for="chatFollow">Follow-up to SALUS</label>
+          <input id="chatFollow" type="text" placeholder="Ask a follow-up once the path is ready…" autocomplete="off" />
+          <button type="submit" id="chatFollowBtn" disabled>Send</button>
+        </form>
+      </aside>
+
+      <!-- CENTER: Path finder graph -->
+      <section class="panel graph-panel path-finder-panel">
+        <div class="panel-head">
+          <h2>Graph path finder</h2>
+          <p class="panel-sub" id="graphFocus">Pick systems or run a question to light a path</p>
+        </div>
+
+        <div class="path-controls">
+          <label>
+            From
+            <select id="pathFrom"></select>
+          </label>
+          <label>
+            To
+            <select id="pathTo"></select>
+          </label>
+          <button type="button" id="pathFindBtn">Trace path</button>
+          <button type="button" id="pathClearBtn" class="ghost">Clear</button>
+        </div>
+
+        <ol class="path-breadcrumb" id="pathBreadcrumb" aria-label="Current path"></ol>
+        <div id="cy" class="cy path-cy"></div>
+        <div class="legend">
+          <span><i class="swatch system"></i> System</span>
+          <span><i class="swatch person"></i> Person</span>
+          <span><i class="swatch path"></i> Active path</span>
+        </div>
+
+        <div class="track-panels">
+          <article class="track-panel" data-panel="01">
+            <h3>01 · Act</h3>
+            <p id="panelAct">Waiting for investigation…</p>
+          </article>
+          <article class="track-panel" data-panel="02">
+            <h3>02 · Remember</h3>
+            <p id="panelRemember">Session memory will appear here.</p>
+          </article>
+          <article class="track-panel" data-panel="03">
+            <h3>03 · Explain</h3>
+            <p id="panelExplain">Evidence path and sources will appear here.</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- RIGHT: what transpired -->
+      <aside class="panel agents-panel context-panel">
+        <h2>What transpired</h2>
+        <ol class="agent-rail" id="agentRail">
+          <li data-agent="router"><span class="agent-name">Router</span><span class="agent-role">classify · handoff</span></li>
+          <li data-agent="investigator"><span class="agent-name">Investigator</span><span class="agent-role">multi-hop · algorithms</span></li>
+          <li data-agent="actor"><span class="agent-name">Actor</span><span class="agent-role">page · assign · act</span></li>
+          <li data-agent="scribe"><span class="agent-name">Scribe</span><span class="agent-role">episode · fact memory</span></li>
+        </ol>
+        <h3>Live steps</h3>
+        <ul class="step-log" id="stepLog"></ul>
+
+        <div class="meta-row" id="metaRow"></div>
+        <article class="answer" id="answerBox">
+          <p class="muted">Path details land here as agents run. SALUS will chat on the left when complete.</p>
+        </article>
+        <div class="sources" id="sourcesBox"></div>
+        <div class="checklist" id="checklistBox"></div>
+        <div class="escalate-status" id="escalateStatus"></div>
+      </aside>
+
+      <div class="action-bar" id="actionBar">
+        <div class="action-group">
+          <span class="action-label">Export</span>
+          <button type="button" data-export="graph_json">Graph nodes JSON</button>
+          <button type="button" data-export="graph_csv">Graph nodes CSV</button>
+          <button type="button" data-export="graphml">GraphML</button>
+          <button type="button" data-export="embedding">Evidence embedding</button>
+          <button type="button" data-export="report_md">Report MD</button>
+          <button type="button" data-export="report_html">Report HTML</button>
+        </div>
+        <div class="action-group escalate-group">
+          <span class="action-label">Escalate</span>
+          <button type="button" data-escalate="page_owner">Page owner</button>
+          <button type="button" data-escalate="manager">Escalate to manager</button>
+          <button type="button" data-escalate="sre">Escalate to SRE</button>
+          <button type="button" data-escalate="severity">Raise to SEV-1</button>
+        </div>
+        <p class="action-toast" id="actionToast" hidden></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span id="graphName">salus:acme</span>
+  </footer>
+</body>
+</html>

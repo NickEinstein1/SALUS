@@ -23,31 +23,41 @@ Labels are industry-neutral (`Person`, `System`, `Ticket`, …).
 Each `System` / `Project` / `Skill` carries a `domain` (e.g. `finance`, `healthcare`, `security`, `facilities`).  
 Same agent loop works for a bank, a hospital, a campus, or a factory.
 
-## Quick start
+## Quick start — hosted UI
 
 ```bash
-# 1) FalkorDB
-docker compose up -d
+# Full stack (FalkorDB + SALUS web UI)
+docker compose up -d --build
 
-# 2) Python env
+# Open the agent console
+open http://localhost:8080
+```
+
+Or locally:
+
+```bash
+docker compose up -d falkordb
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# 3) Load seed (tenant acme — multi-domain campus)
 python -m salus.seed
+python -m salus.api
+# → http://localhost:8080
+```
 
-# 4) Chat CLI
+The UI shows the **agent sequence** (Router → Investigator → Actor → Scribe), a live **company graph**, and the **explainable answer path** as SALUS runs.
+
+### CLI / MCP / verify
+
+```bash
 python -m salus.cli "Why are checkouts failing and who should own this?"
-
-# 5) Verify every Track 01/02/03 judge bullet
 python -m salus.cli verify
-
-# 6) MCP server (Cursor / Claude)
 python -m salus.mcp_server
 ```
 
-Graph name: `salus:acme` · Browser: [http://localhost:3000](http://localhost:3000)  
-Judge map: [`docs/JUDGE_CHECKLIST.md`](docs/JUDGE_CHECKLIST.md)
+Graph name: `salus:acme` · FalkorDB Browser: [http://localhost:3000](http://localhost:3000) · SALUS UI: [http://localhost:8080](http://localhost:8080)  
+Judge map: [`docs/JUDGE_CHECKLIST.md`](docs/JUDGE_CHECKLIST.md) · Security: [`docs/SECURITY.md`](docs/SECURITY.md)
+
+Default API key (dev): `salus-dev-change-me` — paste into the UI top bar / set `SALUS_API_KEY`.
 
 ## Repo map
 

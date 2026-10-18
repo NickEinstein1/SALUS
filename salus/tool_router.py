@@ -101,8 +101,13 @@ def _heuristic_select(question: str, procedure_steps: list[str] | None = None) -
     return selected
 
 
-def _llm_select(question: str, procedure_steps: list[str] | None = None) -> list[str] | None:
-    api_key = os.getenv("OPENAI_API_KEY")
+def _llm_select(
+    question: str,
+    procedure_steps: list[str] | None = None,
+    *,
+    openai_api_key: str | None = None,
+) -> list[str] | None:
+    api_key = (openai_api_key or os.getenv("OPENAI_API_KEY") or "").strip()
     if not api_key:
         return None
     try:
@@ -140,22 +145,35 @@ def _llm_select(question: str, procedure_steps: list[str] | None = None) -> list
         return None
 
 
-def select_tools(question: str, procedure_steps: list[str] | None = None) -> dict[str, Any]:
-    """Select MCP tools for this question. Prefer LLM if OPENAI_API_KEY set."""
-    llm = _llm_select(question, procedure_steps)
+def select_tools(
+    question: str,
+    procedure_steps: list[str] | None = None,
+    *,
+    openai_api_key: str | None = None,
+) -> dict[str, Any]:
+    """Select MCP tools for this question. Prefer LLM if an OpenAI key is provided."""
+    has_key = bool((openai_api_key or os.getenv("OPENAI_API_KEY") or "").strip())
+    llm = _llm_select(question, procedure_steps, openai_api_key=openai_api_key)
     if llm:
         return {
             "mode": "llm",
             "tools": llm,
             "catalog_size": len(TOOL_CATALOG),
-            "rationale": "LLM selected from MCP catalog",
+            "rationale": "LLM selected from MCP catalog (OpenAI key)",
         }
     tools = _heuristic_select(question, procedure_steps)
     return {
         "mode": "heuristic_mcp_catalog",
         "tools": tools,
         "catalog_size": len(TOOL_CATALOG),
-        "rationale": "Deterministic router over the same MCP tool catalog (set OPENAI_API_KEY for LLM selection)",
+        "rationale": (
+            "Deterministic router over the MCP catalog"
+            + (
+                " (OpenAI key present but LLM selection failed — check key/model)"
+                if has_key
+                else " (add OpenAI key in UI or OPENAI_API_KEY for LLM selection)"
+            )
+        ),
     }
 
 
