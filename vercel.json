@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "salus/api.py": {
+      "maxDuration": 60
+    }
+  }
+}

@@ -48,7 +48,15 @@ class Settings:
     )
     allowed_hosts: frozenset[str] = field(
         default_factory=lambda: _csv("SALUS_ALLOWED_HOSTS")
-        or frozenset({"localhost", "127.0.0.1", "testserver"})
+        or frozenset(
+            {
+                "localhost",
+                "127.0.0.1",
+                "testserver",
+                "*.vercel.app",
+                "*.vercel.app.",  # Host header sometimes has trailing dot
+            }
+        )
     )
     allowed_tenants: frozenset[str] = field(
         default_factory=lambda: _csv("SALUS_ALLOWED_TENANTS")
