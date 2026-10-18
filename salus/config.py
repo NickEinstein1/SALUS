@@ -34,7 +34,9 @@ def _api_key() -> str:
 class Settings:
     falkor_host: str = os.getenv("FALKOR_HOST", "localhost")
     falkor_port: int = int(os.getenv("FALKOR_PORT", "6379"))
+    falkor_username: str | None = os.getenv("FALKOR_USERNAME") or None
     falkor_password: str | None = os.getenv("FALKOR_PASSWORD") or None
+    falkor_ssl: bool = _bool("FALKOR_SSL", False)
     tenant_id: str = os.getenv("SALUS_TENANT", "acme")
     graph_prefix: str = "salus"
 

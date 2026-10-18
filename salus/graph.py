@@ -12,8 +12,12 @@ from salus.config import Settings, settings
 def connect(cfg: Settings | None = None) -> FalkorDB:
     cfg = cfg or settings
     kwargs: dict[str, Any] = {"host": cfg.falkor_host, "port": cfg.falkor_port}
+    if cfg.falkor_username:
+        kwargs["username"] = cfg.falkor_username
     if cfg.falkor_password:
         kwargs["password"] = cfg.falkor_password
+    if cfg.falkor_ssl:
+        kwargs["ssl"] = True
     return FalkorDB(**kwargs)
 
 
