@@ -48,6 +48,10 @@ WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    # On Vercel, avoid long seed/connect during cold start (health must respond fast).
+    if settings.on_vercel:
+        yield
+        return
     try:
         n = query("MATCH (n) RETURN count(n)", readonly=True)[0][0]
         if not n:
@@ -71,13 +75,18 @@ app = FastAPI(
 )
 
 app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=["*"] if not settings.is_production else list(settings.allowed_hosts),
+# Vercel preview/production hostnames vary; never block the platform edge.
+_trusted_hosts = (
+    ["*"]
+    if (settings.on_vercel or not settings.is_production)
+    else list(settings.allowed_hosts)
 )
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=_trusted_hosts)
+_cors_origins = list(settings.cors_origins) or ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=list(settings.cors_origins),
+    allow_origins=_cors_origins if "*" not in _cors_origins else ["*"],
+    allow_origin_regex=r"https://.*\.vercel\.app" if settings.on_vercel else None,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "X-API-Key", "X-Admin-Key", "X-OpenAI-Key"],
@@ -194,20 +203,22 @@ class ExportRequest(BaseModel):
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
+    """Liveness + graph probe. Always returns JSON (never raises) for the UI status pill."""
+    base = {
+        "service": "salus",
+        "graph": settings.graph_name,
+        "auth_required": not settings.auth_disabled,
+        "vercel": settings.on_vercel,
+    }
     try:
         n = query("MATCH (n) RETURN count(n)", readonly=True)[0][0]
+        return {**base, "ok": True, "nodes": n}
+    except Exception as e:
         return {
-            "ok": True,
-            "graph": settings.graph_name,
-            "nodes": n,
-            "auth_required": not settings.auth_disabled,
-        }
-    except Exception:
-        return {
+            **base,
             "ok": False,
             "error": "graph unavailable",
-            "graph": settings.graph_name,
-            "auth_required": not settings.auth_disabled,
+            "detail": sanitize_error(e) if settings.debug or settings.on_vercel else None,
         }
 
 

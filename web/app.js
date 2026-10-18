@@ -358,15 +358,32 @@
         openaiKeyInput.addEventListener("blur", persistOpenAIKey);
       }
 
-      const cfg = await fetch("/api/auth/config").then((r) => r.json());
+      const cfgRes = await fetch("/api/auth/config", { redirect: "manual" });
+      if (cfgRes.type === "opaqueredirect" || cfgRes.status === 302 || cfgRes.status === 401) {
+        setHealth(false, "vercel SSO — disable Deployment Protection");
+        toast("Vercel Authentication is blocking the API. Disable it in Project Settings → Deployment Protection.", true);
+        return;
+      }
+      if (!cfgRes.ok) throw new Error(`auth/config ${cfgRes.status}`);
+      const cfg = await cfgRes.json();
       authRequired = !!cfg.auth_required;
 
-      let h = await fetch("/api/health").then((r) => r.json());
+      const healthRes = await fetch("/api/health", { redirect: "manual" });
+      if (healthRes.type === "opaqueredirect" || healthRes.status === 302) {
+        setHealth(false, "vercel SSO — disable Deployment Protection");
+        return;
+      }
+      const ct = healthRes.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        setHealth(false, "api offline (not JSON — check Vercel SSO)");
+        return;
+      }
+      let h = await healthRes.json();
       if (h.ok) {
         setHealth(true, `${h.nodes} nodes · live${authRequired ? " · auth" : ""}`);
         graphName.textContent = h.graph || "salus:acme";
       } else {
-        setHealth(false, "graph offline");
+        setHealth(false, h.error === "graph unavailable" ? "graph offline — check FALKOR_* env" : "graph offline");
       }
       await loadGraph();
     } catch (e) {
