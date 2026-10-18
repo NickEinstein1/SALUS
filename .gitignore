@@ -5,3 +5,10 @@ __pycache__/
 .DS_Store
 *.egg-info/
 .pytest_cache/
+
+# demo recording intermediates
+docs/demo/raw/
+docs/demo/*.webm
+docs/demo/*.aiff
+docs/demo/*.wav
+docs/demo/narration.txt
