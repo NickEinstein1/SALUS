@@ -37,3 +37,9 @@ If Incognito still redirects to login, protection is still on — the app code c
 1. Open `/api/health` — should be `{"ok":true,"nodes":63,…}`  
 2. If `ok:false` / graph unavailable, fix `FALKOR_*` and redeploy  
 3. Seed once if empty: `POST /api/seed` with `X-Admin-Key` / admin key, or run seed locally against Cloud  
+
+## “api offline” while `/api/health` is OK
+
+Production `SALUS_API_KEY` is **not** `salus-dev-change-me`. Paste the real key from Vercel → Settings → Environment Variables into the UI top bar, blur/change to save, then refresh. The graph endpoint requires that key; a 401 used to flip the status pill to “api offline”.
+
+**Production URL:** https://salus-six.vercel.app  

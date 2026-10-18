@@ -397,7 +397,16 @@
       } else {
         setHealth(false, h.error === "graph unavailable" ? "graph offline — check FALKOR_* env" : "graph offline");
       }
-      await loadGraph();
+      // Graph load needs X-API-Key; never let a 401 wipe a healthy API status.
+      try {
+        await loadGraph();
+      } catch (graphErr) {
+        console.warn(graphErr);
+        toast("Set the production SALUS API key in the top bar, then refresh", true);
+        if (h.ok) {
+          setHealth(true, `${h.nodes} nodes · live · set API key`);
+        }
+      }
     } catch (e) {
       setHealth(false, "api offline");
       console.error(e);
@@ -411,6 +420,9 @@
   async function loadGraph(focus) {
     const url = focus ? `/api/graph?focus=${encodeURIComponent(focus)}` : "/api/graph";
     const res = await apiFetch(url);
+    if (res.status === 401) {
+      throw new Error("graph 401 — wrong or missing SALUS API key");
+    }
     if (!res.ok) throw new Error(`graph ${res.status}`);
     const data = await res.json();
     lastGraph = data;
