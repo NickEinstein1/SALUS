@@ -170,6 +170,27 @@
     chatThread.scrollTop = chatThread.scrollHeight;
   }
 
+  function formatMemoryBlock(mem, about) {
+    const episodes = (mem?.episodes || []).map((e) => e.summary).filter(Boolean).slice(0, 4);
+    const facts = (mem?.facts || []).map((f) => f.statement).filter(Boolean).slice(0, 4);
+    const lines = [
+      about ? `Memory about ${about}:` : "Memory from FalkorDB:",
+      ...(episodes.length ? episodes.map((s) => `· Episode: ${s}`) : ["· No episodes yet."]),
+      ...(facts.length ? facts.map((s) => `· Fact: ${s}`) : ["· No semantic facts yet."]),
+    ];
+    return lines.join("\n");
+  }
+
+  async function fetchMemory(about, question) {
+    const params = new URLSearchParams();
+    if (about) params.set("about", about);
+    if (question) params.set("question", question);
+    params.set("limit", "5");
+    const res = await apiFetch(`/api/memory?${params.toString()}`);
+    if (!res.ok) return null;
+    return res.json();
+  }
+
   function buildSalusNarration(result) {
     const path = result.path || {};
     const radius = path.blast_radius || {};
@@ -178,7 +199,8 @@
     const hops = lastPath.length ? lastPath.join(" → ") : null;
     const depends = (radius.depends_on || []).slice(0, 5);
     const owners = result.owners || [];
-    const episodes = (mem.episodes || []).map((e) => e.summary).slice(0, 2);
+    const episodes = (mem.episodes || []).map((e) => e.summary).slice(0, 3);
+    const facts = (mem.facts || []).map((f) => f.statement).slice(0, 3);
     const steps = collectedSteps.slice(0, 6);
 
     const lines = [
@@ -197,11 +219,12 @@
       owners.length ? `Owners in scope: ${owners.join(", ")}.` : "",
       depends.length ? `Downstream depends: ${depends.join(", ")}.` : "",
       "",
-      "02 · Remember",
+      "02 · Remember (fetched from FalkorDB memory)",
       result.session_id ? `Session ${result.session_id}.` : "",
       episodes.length
-        ? `Memory recalled: ${episodes.join(" · ")}.`
-        : "No prior episodes for this session.",
+        ? `Episodes: ${episodes.join(" · ")}`
+        : "No prior episodes for this system.",
+      facts.length ? `Facts: ${facts.join(" · ")}` : "No semantic facts on file.",
       "",
       "03 · Explain",
       result.evidence_summary || "Evidence summarized from graph hops and tool traces.",
@@ -907,7 +930,7 @@
     graphFocus.textContent = "Pick systems or run a question to light a path";
   });
 
-  chatFollowForm?.addEventListener("submit", (e) => {
+  chatFollowForm?.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (!chatReady) {
       toast("Wait for the path / investigation to finish first", true);
@@ -917,8 +940,28 @@
     if (!q) return;
     appendChat("user", q);
     chatFollow.value = "";
-    // Follow-ups re-run the full agent path; narration lands after sections again
-    runAsk(q);
+    if (chatFollowBtn) chatFollowBtn.disabled = true;
+
+    // Pull FalkorDB memory first so the chatbot answers from what it remembers.
+    try {
+      const about = lastResult?.system || null;
+      const mem = await fetchMemory(about, q);
+      if (mem?.ok) {
+        appendChat(
+          "salus",
+          `${formatMemoryBlock(mem, mem.about)}\n\nLooking that up on the live graph next…`
+        );
+      } else if (mem?.error) {
+        appendChat("salus", `${mem.error}\nI'll still run the full investigation.`);
+      }
+    } catch (err) {
+      console.warn(err);
+      appendChat("salus", "Memory lookup failed — continuing with a full graph investigation.");
+    }
+
+    // Full agent run (also forces salus_recall_memory server-side)
+    await runAsk(q);
+    if (chatFollowBtn) chatFollowBtn.disabled = false;
   });
 
   boot();

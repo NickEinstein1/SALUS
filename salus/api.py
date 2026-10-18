@@ -41,7 +41,7 @@ from salus.security import (
     validate_ticket,
 )
 from salus.seed import load_seed
-from salus.tools import list_systems
+from salus.tools import extract_system_mention, list_systems, recall_memory
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
@@ -240,6 +240,38 @@ def seed(
     mutate_limiter.check(f"seed:{client_ip(request)}")
     name = load_seed(reset=reset)
     return {"graph": name, "ok": True}
+
+
+@app.get("/api/memory")
+def memory_recall(
+    request: Request,
+    about: str | None = Query(None, max_length=128),
+    question: str | None = Query(None, max_length=2000),
+    limit: int = Query(5, ge=1, le=20),
+    tenant_id: str | None = Query(None, max_length=64),
+    _: None = Depends(require_api_key),
+) -> dict[str, Any]:
+    """Episodic + semantic memory for the left-hand SALUS chatbot."""
+    try:
+        about = validate_id(about, "about") if about else None
+        tenant = locked_tenant(tenant_id)
+        if question:
+            question = validate_question(question)
+    except Exception as e:
+        from salus.security import as_http
+
+        raise as_http(e) from e
+    target = about or (extract_system_mention(question or "", tenant_id=tenant) if question else None)
+    if not target:
+        return {
+            "ok": False,
+            "about": None,
+            "episodes": [],
+            "facts": [],
+            "error": "Could not map question to a system — mention checkout, ehr, hvac, badge, etc.",
+        }
+    data = recall_memory(target, limit=limit, tenant_id=tenant)
+    return {"ok": True, "graph": settings.graph_name, **data}
 
 
 @app.get("/api/systems")

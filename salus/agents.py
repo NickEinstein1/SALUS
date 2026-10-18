@@ -409,9 +409,19 @@ def run_salus(
     source_lines = list(source_lines) + [f"decision:{t}" for t in decision_titles]
     source_lines += [f"ticket:{k}" for k in ticket_keys]
 
+    mem_lines: list[str] = []
+    for ep in (mem.get("episodes") or [])[:3]:
+        if ep.get("summary"):
+            mem_lines.append(f"- Episode: {ep['summary']}")
+    for fact in (mem.get("facts") or [])[:3]:
+        if fact.get("statement"):
+            mem_lines.append(f"- Fact: {fact['statement']}")
+    memory_block = "\n".join(mem_lines) if mem_lines else "- No prior episodes/facts for this system."
+
     answer = (
         f"**{system}** [{domain}]\n"
         f"{evidence}\n\n"
+        f"**From memory (FalkorDB):**\n{memory_block}\n\n"
         f"**Tool selection ({selection['mode']}):** {', '.join(selection['tools'][:8])}…\n"
         f"**Actions:** {'; '.join(action_lines) or 'none'}\n"
         f"**Confidence:** {confidence:.0%}\n"

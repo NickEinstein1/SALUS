@@ -155,11 +155,14 @@ def select_tools(
     has_key = bool((openai_api_key or os.getenv("OPENAI_API_KEY") or "").strip())
     llm = _llm_select(question, procedure_steps, openai_api_key=openai_api_key)
     if llm:
+        # Chat + investigations always ground answers in FalkorDB memory.
+        if "salus_recall_memory" not in llm:
+            llm = ["salus_recall_memory", *llm]
         return {
             "mode": "llm",
             "tools": llm,
             "catalog_size": len(TOOL_CATALOG),
-            "rationale": "LLM selected from MCP catalog (OpenAI key)",
+            "rationale": "LLM selected from MCP catalog (OpenAI key); memory recall forced on",
         }
     tools = _heuristic_select(question, procedure_steps)
     return {
