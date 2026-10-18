@@ -4,14 +4,21 @@
 
 Your deployment URL is behind **Vercel Authentication** (SSO). Browsers get a login wall; `/api/health` redirects to `vercel.com/sso-api` and the UI shows **api offline**.
 
-**Disable it:**
+URLs that look like `salus-eiv1cec6f-….vercel.app` are often **Preview** deployments — protection is usually **on** for those by default.
+
+**Disable it (required):**
 
 1. Open [Vercel Dashboard](https://vercel.com/dashboard) → your **SALUS** project  
 2. **Settings** → **Deployment Protection**  
-3. Set **Vercel Authentication** to **Disabled** (or only protect Preview, not Production)  
-4. Save → redeploy or hard-refresh the site  
+3. Set **Vercel Authentication** to **Only Preview Deployments** *or* **Disabled**  
+   - If you keep protection on Previews, open the **Production** domain instead of the preview hash URL  
+4. Save  
+5. **Deployments** → open the deployment marked **Production** → **Visit**  
+6. In an **Incognito** window, open `https://YOUR-PRODUCTION-URL/api/health`  
 
-You want a public URL like `https://salus-….vercel.app` that returns JSON from `/api/health` without signing into Vercel.
+**Pass check:** you see raw JSON (`"ok": true` or `"ok": false`) — **not** a Vercel login page and **not** the text `Protected by Vercel Authentication`.
+
+If Incognito still redirects to login, protection is still on — the app code cannot override that.
 
 ## Required environment variables
 

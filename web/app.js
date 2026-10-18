@@ -358,24 +358,36 @@
         openaiKeyInput.addEventListener("blur", persistOpenAIKey);
       }
 
+      const showSsoBanner = () => {
+        const b = $("#deployBanner");
+        if (b) b.hidden = false;
+        setHealth(false, "vercel SSO on — API blocked");
+        toast("Disable Vercel Authentication under Settings → Deployment Protection", true);
+      };
+
       const cfgRes = await fetch("/api/auth/config", { redirect: "manual" });
       if (cfgRes.type === "opaqueredirect" || cfgRes.status === 302 || cfgRes.status === 401) {
-        setHealth(false, "vercel SSO — disable Deployment Protection");
-        toast("Vercel Authentication is blocking the API. Disable it in Project Settings → Deployment Protection.", true);
+        showSsoBanner();
         return;
       }
       if (!cfgRes.ok) throw new Error(`auth/config ${cfgRes.status}`);
-      const cfg = await cfgRes.json();
+      const cfgText = await cfgRes.text();
+      if (cfgText.trim().startsWith("<") || cfgText.includes("Vercel Authentication")) {
+        showSsoBanner();
+        return;
+      }
+      const cfg = JSON.parse(cfgText);
       authRequired = !!cfg.auth_required;
 
       const healthRes = await fetch("/api/health", { redirect: "manual" });
       if (healthRes.type === "opaqueredirect" || healthRes.status === 302) {
-        setHealth(false, "vercel SSO — disable Deployment Protection");
+        showSsoBanner();
         return;
       }
       const ct = healthRes.headers.get("content-type") || "";
       if (!ct.includes("application/json")) {
-        setHealth(false, "api offline (not JSON — check Vercel SSO)");
+        showSsoBanner();
+        setHealth(false, "api offline — Vercel SSO or crash");
         return;
       }
       let h = await healthRes.json();

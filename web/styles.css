@@ -73,6 +73,26 @@ body {
   border: 0;
 }
 
+.deploy-banner {
+  background: #b33a1a;
+  color: #fff;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  padding: 0.75rem 1.25rem;
+  text-align: left;
+}
+
+.deploy-banner[hidden] {
+  display: none !important;
+}
+
+.deploy-banner code {
+  font-family: var(--font-mono);
+  font-size: 0.8em;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 0.1rem 0.35rem;
+}
+
 .topbar {
   display: flex;
   align-items: center;
